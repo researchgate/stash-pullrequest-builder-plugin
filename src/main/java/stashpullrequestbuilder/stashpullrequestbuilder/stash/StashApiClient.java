@@ -5,11 +5,10 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.StringWriter;
 import java.lang.invoke.MethodHandles;
-import java.net.InetAddress;
-import java.net.InetSocketAddress;
-import java.net.Socket;
-import java.net.UnknownHostException;
-import java.security.cert.X509Certificate;
+import java.net.URI;
+import java.security.KeyManagementException;
+import java.security.KeyStoreException;
+import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -20,29 +19,32 @@ import java.util.concurrent.TimeoutException;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import javax.annotation.Nullable;
-import javax.net.ssl.SSLContext;
-import javax.net.ssl.SSLSocketFactory;
-import javax.net.ssl.TrustManager;
-import javax.net.ssl.X509TrustManager;
-import org.apache.commons.httpclient.ConnectTimeoutException;
-import org.apache.commons.httpclient.Credentials;
-import org.apache.commons.httpclient.HttpClient;
-import org.apache.commons.httpclient.HttpClientError;
-import org.apache.commons.httpclient.HttpStatus;
-import org.apache.commons.httpclient.UsernamePasswordCredentials;
-import org.apache.commons.httpclient.auth.AuthScope;
-import org.apache.commons.httpclient.methods.DeleteMethod;
-import org.apache.commons.httpclient.methods.GetMethod;
-import org.apache.commons.httpclient.methods.PostMethod;
-import org.apache.commons.httpclient.methods.StringRequestEntity;
-import org.apache.commons.httpclient.params.HttpConnectionParams;
-import org.apache.commons.httpclient.params.HttpParams;
-import org.apache.commons.httpclient.protocol.Protocol;
-import org.apache.commons.httpclient.protocol.ProtocolSocketFactory;
 import org.apache.commons.io.IOUtils;
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
-import org.apache.http.params.CoreConnectionPNames;
+import org.apache.http.HttpHost;
+import org.apache.http.HttpResponse;
+import org.apache.http.HttpStatus;
+import org.apache.http.auth.AuthScope;
+import org.apache.http.auth.Credentials;
+import org.apache.http.auth.UsernamePasswordCredentials;
+import org.apache.http.client.AuthCache;
+import org.apache.http.client.CredentialsProvider;
+import org.apache.http.client.HttpClient;
+import org.apache.http.client.config.RequestConfig;
+import org.apache.http.client.methods.HttpDelete;
+import org.apache.http.client.methods.HttpGet;
+import org.apache.http.client.methods.HttpPost;
+import org.apache.http.client.protocol.HttpClientContext;
+import org.apache.http.conn.ssl.NoopHostnameVerifier;
+import org.apache.http.conn.ssl.SSLConnectionSocketFactory;
+import org.apache.http.conn.ssl.TrustSelfSignedStrategy;
+import org.apache.http.entity.ContentType;
+import org.apache.http.entity.StringEntity;
+import org.apache.http.impl.auth.BasicScheme;
+import org.apache.http.impl.client.BasicAuthCache;
+import org.apache.http.impl.client.BasicCredentialsProvider;
+import org.apache.http.impl.client.HttpClientBuilder;
+import org.apache.http.protocol.HttpContext;
+import org.apache.http.ssl.SSLContextBuilder;
 import org.codehaus.jackson.map.ObjectMapper;
 import org.codehaus.jackson.node.ObjectNode;
 
@@ -70,6 +72,7 @@ public class StashApiClient {
   private String project;
   private String repositoryName;
   private Credentials credentials;
+  private boolean ignoreSsl;
 
   public StashApiClient(
       String stashHost,
@@ -82,11 +85,7 @@ public class StashApiClient {
     this.project = project;
     this.repositoryName = repositoryName;
     this.apiBaseUrl = stashHost.replaceAll("/$", "") + "/rest/api/1.0/projects/";
-    if (ignoreSsl) {
-      Protocol easyhttps =
-          new Protocol("https", (ProtocolSocketFactory) new EasySSLProtocolSocketFactory(), 443);
-      Protocol.registerProtocol("https", easyhttps);
-    }
+    this.ignoreSsl = ignoreSsl;
   }
 
   public List<StashPullRequestResponseValue> getPullRequests() {
@@ -181,43 +180,59 @@ public class StashApiClient {
     return !response.equals(Integer.toString(HttpStatus.SC_CONFLICT));
   }
 
-  private HttpClient getHttpClient() {
-    HttpClient client = new HttpClient();
-    HttpParams httpParams = client.getParams();
-    httpParams.setParameter(
-        CoreConnectionPNames.CONNECTION_TIMEOUT, HTTP_CONNECTION_TIMEOUT_SECONDS * 1000);
-    httpParams.setParameter(CoreConnectionPNames.SO_TIMEOUT, HTTP_SOCKET_TIMEOUT_SECONDS * 1000);
+  private HttpContext getHttpContext(Credentials credentials) {
+    CredentialsProvider credsProvider = new BasicCredentialsProvider();
+    credsProvider.setCredentials(AuthScope.ANY, credentials);
+    AuthCache authCache = new BasicAuthCache();
+    BasicScheme basicAuth = new BasicScheme();
+    URI stashUri = URI.create(this.apiBaseUrl);
+    authCache.put(
+        new HttpHost(stashUri.getHost(), stashUri.getPort(), stashUri.getScheme()), basicAuth);
 
-    //        if (Jenkins.getInstance() != null) {
-    //            ProxyConfiguration proxy = Jenkins.getInstance().proxy;
-    //            if (proxy != null) {
-    //                logger.info("Jenkins proxy: " + proxy.name + ":" + proxy.port);
-    //                client.getHostConfiguration().setProxy(proxy.name, proxy.port);
-    //                String username = proxy.getUserName();
-    //                String password = proxy.getPassword();
-    //                // Consider it to be passed if username specified. Sufficient?
-    //                if (username != null && !"".equals(username.trim())) {
-    //                    logger.info("Using proxy authentication (user=" + username + ")");
-    //                    client.getState().setProxyCredentials(AuthScope.ANY,
-    //                        new UsernamePasswordCredentials(username, password));
-    //                }
-    //            }
-    //        }
-    return client;
+    HttpClientContext context = HttpClientContext.create();
+    context.setCredentialsProvider(credsProvider);
+    context.setAuthCache(authCache);
+
+    RequestConfig config =
+        RequestConfig.copy(context.getRequestConfig())
+            .setConnectTimeout(HTTP_CONNECTION_TIMEOUT_SECONDS * 1000)
+            .setSocketTimeout(HTTP_SOCKET_TIMEOUT_SECONDS * 1000)
+            .build();
+    context.setRequestConfig(config);
+
+    return context;
+  }
+
+  private HttpClient getHttpClient() {
+    HttpClientBuilder builder = HttpClientBuilder.create().useSystemProperties();
+    if (this.ignoreSsl) {
+      try {
+        SSLContextBuilder sslContextBuilder = new SSLContextBuilder();
+
+        sslContextBuilder.loadTrustMaterial(null, new TrustSelfSignedStrategy());
+        SSLConnectionSocketFactory sslsf =
+            new SSLConnectionSocketFactory(
+                sslContextBuilder.build(), NoopHostnameVerifier.INSTANCE);
+        builder.setSSLSocketFactory(sslsf);
+      } catch (KeyManagementException | KeyStoreException | NoSuchAlgorithmException e) {
+        logger.log(Level.SEVERE, "Failing to setup the SSLConnectionFactory: " + e);
+        throw new RuntimeException(e);
+      }
+    }
+    return builder.build();
   }
 
   private String getRequest(String path) {
     logger.log(Level.FINEST, "PR-GET-REQUEST:" + path);
     HttpClient client = getHttpClient();
-    client.getState().setCredentials(AuthScope.ANY, credentials);
+    HttpContext context = getHttpContext(credentials);
 
-    GetMethod request = new GetMethod(path);
+    HttpGet request = new HttpGet(path);
     // http://www.w3.org/Protocols/rfc2616/rfc2616-sec14.html; section 14.10.
     // tells the server that we want it to close the connection when it has sent the response.
     // address large amount of close_wait sockets client and fin sockets server side
-    request.setRequestHeader("Connection", "close");
+    request.addHeader("Connection", "close");
 
-    client.getParams().setAuthenticationPreemptive(true);
     String response = null;
     FutureTask<String> httpTask = null;
     Thread thread;
@@ -230,24 +245,25 @@ public class StashApiClient {
               new Callable<String>() {
 
                 private HttpClient client;
-                private GetMethod request;
+                private HttpContext context;
+                private HttpGet request;
 
                 @Override
                 public String call() throws Exception {
-                  String response = null;
-                  int responseCode = HttpStatus.SC_INTERNAL_SERVER_ERROR;
-                  responseCode = client.executeMethod(request);
+                  HttpResponse httpResponse = client.execute(request, context);
+                  int responseCode = httpResponse.getStatusLine().getStatusCode();
+                  String response = httpResponse.getStatusLine().getReasonPhrase();
                   if (!validResponseCode(responseCode)) {
                     logger.log(
                         Level.SEVERE,
-                        "Failing to get response from Stash PR GET" + request.getPath());
+                        "Failing to get response from Stash PR GET" + request.getURI());
                     throw new RuntimeException(
                         "Didn't get a 200 response from Stash PR GET! Response; '"
-                            + HttpStatus.getStatusText(responseCode)
+                            + responseCode
                             + "' with message; "
                             + response);
                   }
-                  InputStream responseBodyAsStream = request.getResponseBodyAsStream();
+                  InputStream responseBodyAsStream = httpResponse.getEntity().getContent();
                   StringWriter stringWriter = new StringWriter();
                   IOUtils.copy(responseBodyAsStream, stringWriter, "UTF-8");
                   response = stringWriter.toString();
@@ -255,12 +271,14 @@ public class StashApiClient {
                   return response;
                 }
 
-                public Callable<String> init(HttpClient client, GetMethod request) {
+                public Callable<String> init(
+                    HttpClient client, HttpGet request, HttpContext context) {
                   this.client = client;
+                  this.context = context;
                   this.request = request;
                   return this;
                 }
-              }.init(client, request));
+              }.init(client, request, context));
       thread = new Thread(httpTask);
       thread.start();
       response = httpTask.get(HTTP_REQUEST_TIMEOUT_SECONDS, TimeUnit.SECONDS);
@@ -281,15 +299,14 @@ public class StashApiClient {
 
   public void deleteRequest(String path) {
     HttpClient client = getHttpClient();
-    client.getState().setCredentials(AuthScope.ANY, credentials);
+    HttpContext context = getHttpContext(credentials);
 
-    DeleteMethod request = new DeleteMethod(path);
+    HttpDelete request = new HttpDelete(path);
     // http://www.w3.org/Protocols/rfc2616/rfc2616-sec14.html; section 14.10.
     // tells the server that we want it to close the connection when it has sent the response.
     // address large amount of close_wait sockets client and fin sockets server side
-    request.setRequestHeader("Connection", "close");
+    request.setHeader("Connection", "close");
 
-    client.getParams().setAuthenticationPreemptive(true);
     int response = -1;
     FutureTask<Integer> httpTask = null;
     Thread thread;
@@ -303,21 +320,24 @@ public class StashApiClient {
               new Callable<Integer>() {
 
                 private HttpClient client;
-                private DeleteMethod request;
+                private HttpContext context;
+                private HttpDelete request;
 
                 @Override
                 public Integer call() throws Exception {
                   int response = -1;
-                  response = client.executeMethod(request);
+                  response = client.execute(request, context).getStatusLine().getStatusCode();
                   return response;
                 }
 
-                public Callable<Integer> init(HttpClient client, DeleteMethod request) {
+                public Callable<Integer> init(
+                    HttpClient client, HttpDelete request, HttpContext context) {
                   this.client = client;
+                  this.context = context;
                   this.request = request;
                   return this;
                 }
-              }.init(client, request));
+              }.init(client, request, context));
       thread = new Thread(httpTask);
       thread.start();
       response = httpTask.get(HTTP_REQUEST_TIMEOUT_SECONDS, TimeUnit.SECONDS);
@@ -339,30 +359,28 @@ public class StashApiClient {
   private String postRequest(String path, String comment) {
     logger.log(Level.FINEST, "PR-POST-REQUEST:" + path + " with: " + comment);
     HttpClient client = getHttpClient();
-    client.getState().setCredentials(AuthScope.ANY, credentials);
+    HttpContext context = getHttpContext(credentials);
 
-    PostMethod request = new PostMethod(path);
+    HttpPost request = new HttpPost(path);
     // http://www.w3.org/Protocols/rfc2616/rfc2616-sec14.html; section 14.10.
     // tells the server that we want it to close the connection when it has sent the response.
     // address large amount of close_wait sockets client and fin sockets server side
-    request.setRequestHeader("Connection", "close");
-    request.setRequestHeader("X-Atlassian-Token", "no-check"); // xsrf
+    request.setHeader("Connection", "close");
+    request.setHeader("X-Atlassian-Token", "no-check"); // xsrf
 
     if (comment != null) {
       ObjectNode node = mapper.getNodeFactory().objectNode();
       node.put("text", comment);
-
-      StringRequestEntity requestEntity = null;
+      StringEntity requestEntity = null;
       try {
         requestEntity =
-            new StringRequestEntity(mapper.writeValueAsString(node), "application/json", "UTF-8");
+            new StringEntity(mapper.writeValueAsString(node), ContentType.APPLICATION_JSON);
       } catch (IOException e) {
         e.printStackTrace();
       }
-      request.setRequestEntity(requestEntity);
+      request.setEntity(requestEntity);
     }
 
-    client.getParams().setAuthenticationPreemptive(true);
     String response = "";
     FutureTask<String> httpTask = null;
     Thread thread;
@@ -376,25 +394,26 @@ public class StashApiClient {
               new Callable<String>() {
 
                 private HttpClient client;
-                private PostMethod request;
+                private HttpContext context;
+                private HttpPost request;
 
                 @Override
                 public String call() throws Exception {
-                  String response = "";
-                  int responseCode = HttpStatus.SC_INTERNAL_SERVER_ERROR;
 
-                  responseCode = client.executeMethod(request);
+                  HttpResponse httpResponse = client.execute(request, context);
+                  int responseCode = httpResponse.getStatusLine().getStatusCode();
+                  String response = httpResponse.getStatusLine().getReasonPhrase();
                   if (!validResponseCode(responseCode)) {
                     logger.log(
                         Level.SEVERE,
-                        "Failing to get response from Stash PR POST" + request.getPath());
+                        "Failing to get response from Stash PR POST" + request.getURI());
                     throw new RuntimeException(
                         "Didn't get a 200 response from Stash PR POST! Response; '"
-                            + HttpStatus.getStatusText(responseCode)
+                            + responseCode
                             + "' with message; "
                             + response);
                   }
-                  InputStream responseBodyAsStream = request.getResponseBodyAsStream();
+                  InputStream responseBodyAsStream = httpResponse.getEntity().getContent();
                   StringWriter stringWriter = new StringWriter();
                   IOUtils.copy(responseBodyAsStream, stringWriter, "UTF-8");
                   response = stringWriter.toString();
@@ -403,12 +422,14 @@ public class StashApiClient {
                   return response;
                 }
 
-                public Callable<String> init(HttpClient client, PostMethod request) {
+                public Callable<String> init(
+                    HttpClient client, HttpPost request, HttpContext context) {
                   this.client = client;
+                  this.context = context;
                   this.request = request;
                   return this;
                 }
-              }.init(client, request));
+              }.init(client, request, context));
       thread = new Thread(httpTask);
       thread.start();
       response = httpTask.get(HTTP_REQUEST_TIMEOUT_SECONDS, TimeUnit.SECONDS);
@@ -486,80 +507,5 @@ public class StashApiClient {
   private String pullRequestsPath(int start) {
     String basePath = pullRequestsPath();
     return basePath.substring(0, basePath.length() - 1) + "?start=" + start;
-  }
-
-  private static class EasySSLProtocolSocketFactory
-      extends stashpullrequestbuilder.stashpullrequestbuilder.repackage.org.apache.commons
-          .httpclient.contrib.ssl.EasySSLProtocolSocketFactory {
-    private static final Log LOG = LogFactory.getLog(EasySSLProtocolSocketFactory.class);
-    private SSLContext sslcontext = null;
-
-    private static SSLContext createEasySSLContext() {
-      try {
-        TrustManager[] trustAllCerts =
-            new TrustManager[] {
-              new X509TrustManager() {
-                public X509Certificate[] getAcceptedIssuers() {
-                  return null;
-                }
-
-                public void checkClientTrusted(X509Certificate[] certs, String authType) {}
-
-                public void checkServerTrusted(X509Certificate[] certs, String authType) {}
-              }
-            };
-
-        SSLContext context = SSLContext.getInstance("SSL");
-        context.init(null, trustAllCerts, null);
-        return context;
-      } catch (Exception e) {
-        LOG.error(e.getMessage(), e);
-        throw new HttpClientError(e.toString());
-      }
-    }
-
-    private SSLContext getSSLContext() {
-      if (this.sslcontext == null) {
-        this.sslcontext = createEasySSLContext();
-      }
-      return this.sslcontext;
-    }
-
-    public Socket createSocket(String host, int port, InetAddress clientHost, int clientPort)
-        throws IOException, UnknownHostException {
-      return this.getSSLContext()
-          .getSocketFactory()
-          .createSocket(host, port, clientHost, clientPort);
-    }
-
-    public Socket createSocket(
-        String host, int port, InetAddress localAddress, int localPort, HttpConnectionParams params)
-        throws IOException, UnknownHostException, ConnectTimeoutException {
-      if (params == null) {
-        throw new IllegalArgumentException("Parameters may not be null");
-      } else {
-        int timeout = params.getConnectionTimeout();
-        SSLSocketFactory socketfactory = this.getSSLContext().getSocketFactory();
-        if (timeout == 0) {
-          return socketfactory.createSocket(host, port, localAddress, localPort);
-        } else {
-          Socket socket = socketfactory.createSocket();
-          InetSocketAddress localaddr = new InetSocketAddress(localAddress, localPort);
-          InetSocketAddress remoteaddr = new InetSocketAddress(host, port);
-          socket.bind(localaddr);
-          socket.connect(remoteaddr, timeout);
-          return socket;
-        }
-      }
-    }
-
-    public Socket createSocket(String host, int port) throws IOException {
-      return this.getSSLContext().getSocketFactory().createSocket(host, port);
-    }
-
-    public Socket createSocket(Socket socket, String host, int port, boolean autoClose)
-        throws IOException {
-      return this.getSSLContext().getSocketFactory().createSocket(socket, host, port, autoClose);
-    }
   }
 }
