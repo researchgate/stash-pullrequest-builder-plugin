@@ -28,11 +28,11 @@ import static java.lang.String.format;
 @SuppressFBWarnings("WMI_WRONG_MAP_ITERATOR")
 public class StashRepository {
     private static final Logger logger = Logger.getLogger(StashRepository.class.getName());
-    public static final String BUILD_START_MARKER = "[*BuildStarted* **%s**] %s into %s";
-    public static final String BUILD_FINISH_MARKER = "[*BuildFinished* **%s**] %s into %s";
+    public static final String BUILD_START_MARKER = "[*Build Started* **%s**] %s into %s";
+    public static final String BUILD_FINISH_MARKER = "[*Build Finished* **%s**] %s into %s";
 
-    public static final String BUILD_START_REGEX = "\\[\\*BuildStarted\\* \\*\\*%s\\*\\*\\] ([0-9a-fA-F]+) into ([0-9a-fA-F]+)";
-    public static final String BUILD_FINISH_REGEX = "\\[\\*BuildFinished\\* \\*\\*%s\\*\\*\\] ([0-9a-fA-F]+) into ([0-9a-fA-F]+)";
+    public static final String BUILD_START_REGEX = "\\[\\*Build Started\\* \\*\\*%s\\*\\*\\] ([0-9a-fA-F]+) into ([0-9a-fA-F]+)";
+    public static final String BUILD_FINISH_REGEX = "\\[\\*Build Finished\\* \\*\\*%s\\*\\*\\] ([0-9a-fA-F]+) into ([0-9a-fA-F]+)";
 
     public static final String BUILD_FINISH_SENTENCE = BUILD_FINISH_MARKER + " %n%n **[%s](%s)** - Build *%d* which took *%s*";
     public static final String BUILD_START_SENTENCE = BUILD_START_MARKER + " %n%n **[%s](%s)** - Build *%d*";
