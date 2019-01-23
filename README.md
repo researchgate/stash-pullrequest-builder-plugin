@@ -107,7 +107,7 @@ If you are using the [StashNotifier plugin](https://wiki.jenkins-ci.org/display/
 
 If you want to rerun pull request test, write *"test this please"* comment to your pull request.
 
-##Adding additional parameters to a build
+## Adding additional parameters to a build
 
 If you want to add additional parameters to the triggered build, add comments using the pattern `p:<parameter_name>=<value>`, one at each line, prefixed with `p:`. If the same parameter name appears multiple times the latest comment with that parameter will decide the value.
 
