@@ -48,9 +48,11 @@ public class StashBuilds {
         if (cause == null) {
             return;
         }
-        Result result = run.getResult();
-        JenkinsLocationConfiguration globalConfig = new JenkinsLocationConfiguration();
-        String rootUrl = globalConfig.getUrl();
+        Result result = build.getResult();
+        // Note: current code should no longer use "new JenkinsLocationConfiguration()"
+        // as only one instance per runtime is really supported by the current core.
+        JenkinsLocationConfiguration globalConfig = JenkinsLocationConfiguration.get();
+        String rootUrl = globalConfig == null ? null : globalConfig.getUrl();
         String buildUrl = "";
         if (rootUrl == null) {
             buildUrl = " PLEASE SET JENKINS ROOT URL FROM GLOBAL CONFIGURATION " + run.getUrl();
