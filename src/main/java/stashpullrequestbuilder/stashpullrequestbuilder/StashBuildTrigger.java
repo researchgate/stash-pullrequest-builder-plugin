@@ -129,7 +129,7 @@ public class StashBuildTrigger extends Trigger<Job<?, ?>> {
 
     // Needed for Jelly Config
     public String getcredentialsId() {
-    	return this.credentialsId;
+        return this.credentialsId;
     }
 
     private StandardUsernamePasswordCredentials getCredentials() {
@@ -172,7 +172,7 @@ public class StashBuildTrigger extends Trigger<Job<?, ?>> {
     }
 
     public boolean getCheckDestinationCommit() {
-    	return checkDestinationCommit;
+        return checkDestinationCommit;
     }
 
     public boolean isIgnoreSsl() {
@@ -239,9 +239,9 @@ public class StashBuildTrigger extends Trigger<Job<?, ?>> {
 
         Map<String, String> additionalParameters = cause.getAdditionalParameters();
         if(additionalParameters != null){
-        	for(String parameter : additionalParameters.keySet()){
-        		values.add(new StringParameterValue(parameter, additionalParameters.get(parameter)));
-        	}
+            for(String parameter : additionalParameters.keySet()){
+                values.add(new StringParameterValue(parameter, additionalParameters.get(parameter)));
+            }
         }
 
         if (isCancelOutdatedJobsEnabled()) {

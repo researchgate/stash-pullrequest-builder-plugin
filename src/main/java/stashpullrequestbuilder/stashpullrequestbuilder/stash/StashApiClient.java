@@ -1,6 +1,8 @@
 package stashpullrequestbuilder.stashpullrequestbuilder.stash;
 
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
+import org.apache.commons.httpclient.methods.GetMethod;
+import org.apache.commons.httpclient.methods.PostMethod;
 import org.apache.commons.io.IOUtils;
 import org.apache.http.HttpHost;
 import org.apache.http.HttpResponse;
@@ -39,7 +41,6 @@ import java.security.KeyManagementException;
 import java.security.KeyStoreException;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.Callable;
 import java.util.concurrent.FutureTask;
@@ -201,7 +202,28 @@ public class StashApiClient {
                 throw new RuntimeException(e);
             }
         }
-        return builder.build();
+        RequestConfig requestConfig = new RequestConfig.Builder().setConnectTimeout(StashApiClient.HTTP_CONNECTION_TIMEOUT_SECONDS * 1000)
+                .setSocketTimeout(StashApiClient.HTTP_SOCKET_TIMEOUT_SECONDS * 1000)
+                .build();
+        builder.setDefaultRequestConfig(requestConfig)
+        HttpClient client = builder.build();
+
+//        if (Jenkins.getInstance() != null) {
+//            ProxyConfiguration proxy = Jenkins.getInstance().proxy;
+//            if (proxy != null) {
+//                logger.info("Jenkins proxy: " + proxy.name + ":" + proxy.port);
+//                client.getHostConfiguration().setProxy(proxy.name, proxy.port);
+//                String username = proxy.getUserName();
+//                String password = proxy.getPassword();
+//                // Consider it to be passed if username specified. Sufficient?
+//                if (username != null && !"".equals(username.trim())) {
+//                    logger.info("Using proxy authentication (user=" + username + ")");
+//                    client.getState().setProxyCredentials(AuthScope.ANY,
+//                        new UsernamePasswordCredentials(username, password));
+//                }
+//            }
+//        }
+        return client;
     }
 
     private String getRequest(String path) {
