@@ -8,8 +8,6 @@ This Jenkins plugin builds pull requests from a Atlassian Stash server and will 
 This plugin was inspired by the GitHub & BitBucket pull request builder plugins.
 
 - Official [Jenkins Plugin Page](https://wiki.jenkins-ci.org/display/JENKINS/Stash+pullrequest+builder+plugin)
-- See this [blogpost](http://blog.nemccarthy.me/?p=387) for more details
-
 
 ## Prerequisites
 
