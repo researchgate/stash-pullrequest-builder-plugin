@@ -30,6 +30,14 @@
       <name>Nathan McCarthy</name>
       <email>nem@nemccarthy.me</email>
     </developer>
+    <developer>
+      <name>Jim Klimov</name>
+    </developer>
+    <developer>
+      <id>jbochenski</id>
+      <name>Jakub Bocheński</name>
+      <email>kuba.bochenski+stash-pullrequest-builder-plugin@gmail.com</email>
+    </developer>    
   </developers>
 
   <!-- get every artifact through repo.jenkins-ci.org, which proxies all the artifacts that we need -->
