@@ -3,7 +3,7 @@
   <f:entry title="Cron" field="cron">
     <f:textbox />
   </f:entry>
-  <f:entry title="Stash Host" field="stashHost">
+  <f:entry title="Stash URL" field="stashHost">
       <f:textbox />
   </f:entry>
   <f:entry title="Stash Credentials (username/password)" field="credentialsId">
