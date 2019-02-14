@@ -206,13 +206,33 @@ public class StashRepository {
     }
 
     private Boolean isPullRequestMergable(StashPullRequestResponseValue pullRequest) {
-        if (trigger.isCheckMergeable() || trigger.isCheckNotConflicted()) {
+        if (trigger.isCheckMergeable() || trigger.isCheckNotConflicted() || trigger.isCheckProbeMergeStatus()) {
+            /* Request PR status from Stash, and consult our configuration
+             * toggles on whether we care about certain verdicts in that
+             * JSON answer, parsed into fields of the "response" object.
+             * See example in StashApiClientTest.java.
+             */
             StashPullRequestMergableResponse mergable = client.getPullRequestMergeStatus(pullRequest.getId());
             boolean res = true;
             if (trigger.isCheckMergeable())
                 res = res && mergable.getCanMerge();
             if (trigger.isCheckNotConflicted())
                 res = res && !mergable.getConflicted();
+
+            /* The trigger.isCheckProbeMergeStatus() consulted above
+             * is for when a user wants to just probe the Stash REST API
+             * call, so Stash updates the refspecs (by design it does
+             * so "lazily" to reduce server load, that is until someone
+             * requests a refresh).
+             *
+             * This is a workaround for a case of broken git references
+             * that appear due to pull requests, even popping up in other
+             * jobs trying to use e.g. just the master branch.
+             *
+             * See https://issues.jenkins-ci.org/browse/JENKINS-35219 and
+             * https://community.atlassian.com/t5/Bitbucket-questions/Change-pull-request-refs-after-Commit-instead-of-after-Approval/qaq-p/194702
+             */
+
             return res;
         }
         return true;

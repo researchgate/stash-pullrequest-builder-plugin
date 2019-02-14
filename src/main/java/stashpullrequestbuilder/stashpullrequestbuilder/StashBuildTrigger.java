@@ -33,6 +33,7 @@ import org.acegisecurity.Authentication;
 import org.apache.commons.lang.StringUtils;
 import org.kohsuke.stapler.AncestorInPath;
 import org.kohsuke.stapler.DataBoundConstructor;
+import org.kohsuke.stapler.DataBoundSetter;
 import org.kohsuke.stapler.QueryParameter;
 import org.kohsuke.stapler.StaplerRequest;
 
@@ -69,6 +70,8 @@ public class StashBuildTrigger extends Trigger<Job<?, ?>> {
     private final boolean onlyBuildOnComment;
     private final boolean deletePreviousBuildFinishComments;
     private final boolean cancelOutdatedJobsEnabled;
+
+    private boolean checkProbeMergeStatus;
 
     transient private StashPullRequestsBuilder stashPullRequestsBuilder;
 
@@ -113,6 +116,13 @@ public class StashBuildTrigger extends Trigger<Job<?, ?>> {
         this.onlyBuildOnComment = onlyBuildOnComment;
         this.deletePreviousBuildFinishComments = deletePreviousBuildFinishComments;
         this.targetBranchesToBuild = targetBranchesToBuild;
+    }
+
+    @DataBoundSetter
+    public void setCheckProbeMergeStatus(
+        boolean checkProbeMergeStatus
+    ) {
+        this.checkProbeMergeStatus = checkProbeMergeStatus;
     }
 
     public String getStashHost() {
@@ -329,6 +339,10 @@ public class StashBuildTrigger extends Trigger<Job<?, ?>> {
 
     public boolean isCheckNotConflicted() {
         return checkNotConflicted;
+    }
+
+    public boolean isCheckProbeMergeStatus() {
+        return checkProbeMergeStatus;
     }
 
     public boolean isOnlyBuildOnComment() {

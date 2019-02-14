@@ -1,0 +1,25 @@
+<div>
+    Probe the Stash REST API for merge status just so it recalculates the
+    refspec: this just causes the plugin to send a request to the Stash
+    REST API endpoint which triggers recalculation of Git refspecs.
+    Unlike the "Build only if..." options, this one has no impact on
+    proceeding with the build itself.<br/>
+
+    Use this if you encounter problems with stale commits being built,
+    but don't want to skip builds based on the PR status (as would be
+    the case with the "Build only if Stash reports no conflicts" or
+    "Build only if Stash reports PR is mergeable" options). Also note
+    that this option does not have any special effect if you have
+    enabled one of those two options.<br/>
+
+    Normally Stash has a "lazy" recalculation, after a request to do so
+    (which may be part of Stash Web-UI processing among other things),
+    in order to avoid server load spikes whenever a source or target
+    branch of a pull request changes.<br/>
+
+    For more details see
+    <a href="https://issues.jenkins-ci.org/browse/JENKINS-35219">JENKINS-35219
+    issue</a> and
+    <a href="https://answers.atlassian.com/questions/239988/change-pull-request-refs-after-commit-instead-of-after-approval-or-workaround">Atlassian
+    discussion</a> for details).
+</div>
