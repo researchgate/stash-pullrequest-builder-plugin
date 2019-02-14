@@ -10,9 +10,10 @@
   <artifactId>stash-pullrequest-builder</artifactId>
   <version>${revision}${changelist}</version>
   <packaging>hpi</packaging>
+  
   <name>Stash Pullrequest Builder Plugin</name>
-  <description>This Jenkins plugin builds pull requests from Stash and will report the test results.</description>
-  <url>https://wiki.jenkins-ci.org/display/JENKINS/Stash+pullrequest+builder+plugin</url>
+  <description>This plugin builds Stash pull requests and posts the build results on Stash</description>
+  <url>https://wiki.jenkins.io/display/JENKINS/Stash+pullrequest+builder+plugin</url>
 
   <developers>
     <developer>
@@ -39,11 +40,23 @@
     <url>https://github.com/jenkinsci/stash-pullrequest-builder-plugin</url>
   </scm>
 
+  <distributionManagement>
+    <repository>
+      <id>maven.jenkins-ci.org</id>
+      <name>jenkinsci-releases</name>
+      <url>https://repo.jenkins-ci.org/releases</url>
+    </repository>
+    <snapshotRepository>
+      <id>maven.jenkins-ci.org</id>
+      <name>jenkinsci-snapshots</name>
+      <url>https://repo.jenkins-ci.org/snapshots</url>
+    </snapshotRepository>
+  </distributionManagement>  
+  
   <properties>
     <revision>1.7.1</revision>
     <changelist>-SNAPSHOT</changelist>
     <java.level>8</java.level>
-    <!--<jenkins.version>2.7.4</jenkins.version>-->
   </properties>
 
   <dependencies>
@@ -73,19 +86,17 @@
       <version>2.1.5</version>
     </dependency>
   </dependencies>
-
-  <!-- get every artifact through repo.jenkins-ci.org, which proxies all the artifacts that we need -->
+  
   <repositories>
     <repository>
       <id>repo.jenkins-ci.org</id>
-      <url>http://repo.jenkins-ci.org/public/</url>
+      <url>https://repo.jenkins-ci.org/public/</url>
     </repository>
   </repositories>
-
   <pluginRepositories>
     <pluginRepository>
       <id>repo.jenkins-ci.org</id>
-      <url>http://repo.jenkins-ci.org/public/</url>
+      <url>https://repo.jenkins-ci.org/public/</url>
     </pluginRepository>
   </pluginRepositories>
 
