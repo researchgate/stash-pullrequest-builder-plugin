@@ -8,7 +8,7 @@
   </parent>
 
   <artifactId>stash-pullrequest-builder</artifactId>
-  <version>${revision}${changelist}</version>
+  <version>1.8</version>
   <packaging>hpi</packaging>
   
   <name>Stash Pullrequest Builder Plugin</name>
@@ -36,7 +36,7 @@
   <scm>
     <connection>scm:git:ssh://github.com/jenkinsci/stash-pullrequest-builder-plugin.git</connection>
     <developerConnection>scm:git:ssh://git@github.com/jenkinsci/stash-pullrequest-builder-plugin.git</developerConnection>
-    <tag>${scmTag}</tag>
+    <tag>stash-pullrequest-builder-1.8</tag>
     <url>https://github.com/jenkinsci/stash-pullrequest-builder-plugin</url>
   </scm>
 
