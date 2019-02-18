@@ -8,7 +8,7 @@
   </parent>
 
   <artifactId>stash-pullrequest-builder</artifactId>
-  <version>1.9-SNAPSHOT</version>
+  <version>${revision}${changelist}</version>
   <packaging>hpi</packaging>
   
   <name>Stash Pullrequest Builder Plugin</name>
@@ -54,7 +54,7 @@
   </distributionManagement>  
   
   <properties>
-    <revision>1.7.1</revision>
+    <revision>1.9</revision>
     <changelist>-SNAPSHOT</changelist>
     <java.level>8</java.level>
   </properties>
