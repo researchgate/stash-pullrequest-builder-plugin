@@ -361,7 +361,7 @@ public class StashBuildTrigger extends Trigger<Job<?, ?>> {
 
         @Override
         public String getDisplayName() {
-            return "Stash Pull Requests Builder";
+            return "Stash pull request builder";
         }
 
         @Override
