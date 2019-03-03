@@ -10,7 +10,7 @@
   <artifactId>stash-pullrequest-builder</artifactId>
   <version>${revision}${changelist}</version>
   <packaging>hpi</packaging>
-  
+
   <name>Stash Pullrequest Builder Plugin</name>
   <description>This plugin builds Stash pull requests and posts the build results on Stash</description>
   <url>https://wiki.jenkins.io/display/JENKINS/Stash+pullrequest+builder+plugin</url>
@@ -51,8 +51,8 @@
       <name>jenkinsci-snapshots</name>
       <url>https://repo.jenkins-ci.org/snapshots</url>
     </snapshotRepository>
-  </distributionManagement>  
-  
+  </distributionManagement>
+
   <properties>
     <revision>1.9</revision>
     <changelist>-SNAPSHOT</changelist>
@@ -86,7 +86,7 @@
       <version>2.1.5</version>
     </dependency>
   </dependencies>
-  
+
   <repositories>
     <repository>
       <id>repo.jenkins-ci.org</id>
@@ -109,13 +109,13 @@
           <configuration>
             <excludeFilterFile>${basedir}/src/findbugs-exclude.xml</excludeFilterFile>
           </configuration>
-        </plugin> 
+        </plugin>
         <plugin>
           <artifactId>maven-javadoc-plugin</artifactId>
           <configuration>
             <excludePackageNames>stashpullrequestbuilder.stashpullrequestbuilder.repackage.*</excludePackageNames>
           </configuration>
-        </plugin>        
+        </plugin>
       </plugins>
     </pluginManagement>
     <plugins>
