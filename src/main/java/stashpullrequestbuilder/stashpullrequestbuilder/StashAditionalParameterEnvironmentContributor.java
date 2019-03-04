@@ -2,11 +2,14 @@ package stashpullrequestbuilder.stashpullrequestbuilder;
 
 import hudson.EnvVars;
 import hudson.Extension;
-import hudson.model.*;
+import hudson.model.AbstractBuild;
+import hudson.model.EnvironmentContributor;
+import hudson.model.Run;
+import hudson.model.TaskListener;
 
 import javax.annotation.Nonnull;
 import java.io.IOException;
-import java.util.*;
+import java.util.Objects;
 
 @Extension
 public class StashAditionalParameterEnvironmentContributor extends EnvironmentContributor {
