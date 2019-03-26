@@ -9,8 +9,4 @@
        </Or>
        <Bug pattern="NP_NULL_ON_SOME_PATH" />
      </Match>
-
-     <Match>
-       <Package name="~stashpullrequestbuilder\.stashpullrequestbuilder\.repackage\..*" />
-     </Match>
 </FindBugsFilter>
