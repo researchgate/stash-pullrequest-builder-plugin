@@ -57,9 +57,6 @@ public class StashRepository {
   public StashRepository(@Nonnull AbstractProject<?, ?> job, @Nonnull StashBuildTrigger trigger) {
     this.job = job;
     this.trigger = trigger;
-  }
-
-  public void init() {
     client =
         new StashApiClient(
             trigger.getStashHost(),
