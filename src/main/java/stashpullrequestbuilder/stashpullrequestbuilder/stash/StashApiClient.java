@@ -13,6 +13,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.FutureTask;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -105,7 +106,7 @@ public class StashApiClient {
       }
       return pullRequestResponseValues;
     } catch (IOException e) {
-      logger.log(Level.WARNING, "invalid pull request response.", e);
+      logger.log(Level.WARNING, "Failed to get pull request list: ", e);
     }
     return Collections.emptyList();
   }
@@ -137,15 +138,22 @@ public class StashApiClient {
         commentResponses.add(resp);
       }
       return extractComments(commentResponses);
-    } catch (Exception e) {
-      logger.log(Level.WARNING, "invalid pull request response.", e);
+    } catch (IOException e) {
+      logger.log(Level.WARNING, "Cannot get Stash comments for PR #" + pullRequestId + ": ", e);
     }
     return Collections.emptyList();
   }
 
   public void deletePullRequestComment(String pullRequestId, String commentId) {
     String path = pullRequestPath(pullRequestId) + "/comments/" + commentId + "?version=0";
-    deleteRequest(path);
+    try {
+      deleteRequest(path);
+    } catch (IOException e) {
+      logger.log(
+          Level.WARNING,
+          "Cannot delete comment for PR #" + pullRequestId + " comment ID " + commentId + ": ",
+          e);
+    }
   }
 
   @Nullable
@@ -156,7 +164,7 @@ public class StashApiClient {
       return parseSingleCommentJson(response);
 
     } catch (IOException e) {
-      logger.log(Level.SEVERE, "Failed to post Stash PR comment " + path + " " + e);
+      logger.log(Level.WARNING, "Failed to post Stash PR comment " + path + " " + e);
     }
     return null;
   }
@@ -176,7 +184,13 @@ public class StashApiClient {
 
   public boolean mergePullRequest(String pullRequestId, String version) {
     String path = pullRequestPath(pullRequestId) + "/merge?version=" + version;
-    String response = postRequest(path, null);
+    String response;
+    try {
+      response = postRequest(path, null);
+    } catch (IOException e) {
+      logger.log(Level.WARNING, "Cannot merge pull request: " + e);
+      return false;
+    }
     return !response.equals(Integer.toString(HttpStatus.SC_CONFLICT));
   }
 
@@ -203,7 +217,7 @@ public class StashApiClient {
     return context;
   }
 
-  private HttpClient getHttpClient() {
+  private HttpClient getHttpClient() throws IOException {
     HttpClientBuilder builder = HttpClientBuilder.create().useSystemProperties();
     if (this.ignoreSsl) {
       try {
@@ -215,15 +229,14 @@ public class StashApiClient {
                 sslContextBuilder.build(), NoopHostnameVerifier.INSTANCE);
         builder.setSSLSocketFactory(sslsf);
       } catch (KeyManagementException | KeyStoreException | NoSuchAlgorithmException e) {
-        logger.log(Level.SEVERE, "Failing to setup the SSLConnectionFactory: " + e);
-        throw new RuntimeException(e);
+        throw new IOException(e);
       }
     }
     return builder.build();
   }
 
-  private String getRequest(String path) {
-    logger.log(Level.FINEST, "PR-GET-REQUEST:" + path);
+  private String getRequest(String path) throws IOException {
+    logger.log(Level.FINEST, "GET path: " + path);
     HttpClient client = getHttpClient();
     HttpContext context = getHttpContext(credentials);
 
@@ -249,18 +262,17 @@ public class StashApiClient {
                 private HttpGet request;
 
                 @Override
-                public String call() throws Exception {
+                public String call() throws IOException {
                   HttpResponse httpResponse = client.execute(request, context);
                   int responseCode = httpResponse.getStatusLine().getStatusCode();
                   String response = httpResponse.getStatusLine().getReasonPhrase();
                   if (!validResponseCode(responseCode)) {
-                    logger.log(
-                        Level.SEVERE,
-                        "Failing to get response from Stash PR GET" + request.getURI());
-                    throw new RuntimeException(
-                        "Didn't get a 200 response from Stash PR GET! Response; '"
+                    throw new IOException(
+                        "Unexpected response for GET "
+                            + request.getURI()
+                            + " - "
                             + responseCode
-                            + "' with message; "
+                            + " "
                             + response);
                   }
                   InputStream responseBodyAsStream = httpResponse.getEntity().getContent();
@@ -284,20 +296,18 @@ public class StashApiClient {
       response = httpTask.get(HTTP_REQUEST_TIMEOUT_SECONDS, TimeUnit.SECONDS);
 
     } catch (TimeoutException e) {
-      e.printStackTrace();
       request.abort();
-      throw new RuntimeException(e);
-    } catch (Exception e) {
-      e.printStackTrace();
-      throw new RuntimeException(e);
+      throw new IOException(e);
+    } catch (ExecutionException | InterruptedException e) {
+      throw new IOException(e);
     } finally {
       request.releaseConnection();
     }
-    logger.log(Level.FINEST, "PR-GET-RESPONSE:" + response);
+    logger.log(Level.FINEST, "GET response: " + response);
     return response;
   }
 
-  public void deleteRequest(String path) {
+  public void deleteRequest(String path) throws IOException {
     HttpClient client = getHttpClient();
     HttpContext context = getHttpContext(credentials);
 
@@ -324,7 +334,7 @@ public class StashApiClient {
                 private HttpDelete request;
 
                 @Override
-                public Integer call() throws Exception {
+                public Integer call() throws IOException {
                   int response = -1;
                   response = client.execute(request, context).getStatusLine().getStatusCode();
                   return response;
@@ -343,21 +353,19 @@ public class StashApiClient {
       response = httpTask.get(HTTP_REQUEST_TIMEOUT_SECONDS, TimeUnit.SECONDS);
 
     } catch (TimeoutException e) {
-      e.printStackTrace();
       request.abort();
-      throw new RuntimeException(e);
-    } catch (Exception e) {
-      e.printStackTrace();
-      throw new RuntimeException(e);
+      throw new IOException(e);
+    } catch (ExecutionException | InterruptedException e) {
+      throw new IOException(e);
     } finally {
       request.releaseConnection();
     }
 
-    logger.log(Level.FINE, "Delete comment {" + path + "} returned result code; " + response);
+    logger.log(Level.FINE, "DELETE on " + path + " returned result code: " + response);
   }
 
-  private String postRequest(String path, String comment) {
-    logger.log(Level.FINEST, "PR-POST-REQUEST:" + path + " with: " + comment);
+  private String postRequest(String path, String comment) throws IOException {
+    logger.log(Level.FINEST, "POST on " + path + " with comment: " + comment);
     HttpClient client = getHttpClient();
     HttpContext context = getHttpContext(credentials);
 
@@ -372,12 +380,8 @@ public class StashApiClient {
       ObjectNode node = mapper.getNodeFactory().objectNode();
       node.put("text", comment);
       StringEntity requestEntity = null;
-      try {
-        requestEntity =
-            new StringEntity(mapper.writeValueAsString(node), ContentType.APPLICATION_JSON);
-      } catch (IOException e) {
-        e.printStackTrace();
-      }
+      requestEntity =
+          new StringEntity(mapper.writeValueAsString(node), ContentType.APPLICATION_JSON);
       request.setEntity(requestEntity);
     }
 
@@ -398,26 +402,25 @@ public class StashApiClient {
                 private HttpPost request;
 
                 @Override
-                public String call() throws Exception {
+                public String call() throws IOException {
 
                   HttpResponse httpResponse = client.execute(request, context);
                   int responseCode = httpResponse.getStatusLine().getStatusCode();
                   String response = httpResponse.getStatusLine().getReasonPhrase();
                   if (!validResponseCode(responseCode)) {
-                    logger.log(
-                        Level.SEVERE,
-                        "Failing to get response from Stash PR POST" + request.getURI());
-                    throw new RuntimeException(
-                        "Didn't get a 200 response from Stash PR POST! Response; '"
+                    throw new IOException(
+                        "Unexpected response for POST "
+                            + request.getURI()
+                            + " - "
                             + responseCode
-                            + "' with message; "
+                            + " "
                             + response);
                   }
                   InputStream responseBodyAsStream = httpResponse.getEntity().getContent();
                   StringWriter stringWriter = new StringWriter();
                   IOUtils.copy(responseBodyAsStream, stringWriter, "UTF-8");
                   response = stringWriter.toString();
-                  logger.log(Level.FINEST, "API Request Response: " + response);
+                  logger.log(Level.FINEST, "POST response (in Callable): " + response);
 
                   return response;
                 }
@@ -435,17 +438,15 @@ public class StashApiClient {
       response = httpTask.get(HTTP_REQUEST_TIMEOUT_SECONDS, TimeUnit.SECONDS);
 
     } catch (TimeoutException e) {
-      e.printStackTrace();
       request.abort();
-      throw new RuntimeException(e);
-    } catch (Exception e) {
-      e.printStackTrace();
-      throw new RuntimeException(e);
+      throw new IOException(e);
+    } catch (ExecutionException | InterruptedException e) {
+      throw new IOException(e);
     } finally {
       request.releaseConnection();
     }
 
-    logger.log(Level.FINEST, "PR-POST-RESPONSE:" + response);
+    logger.log(Level.FINEST, "POST response: " + response);
 
     return response;
   }
