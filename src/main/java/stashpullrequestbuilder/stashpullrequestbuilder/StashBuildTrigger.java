@@ -10,7 +10,6 @@ import com.cloudbees.plugins.credentials.common.StandardUsernamePasswordCredenti
 import com.cloudbees.plugins.credentials.domains.URIRequirementBuilder;
 import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import hudson.Extension;
-import hudson.model.AbstractProject;
 import hudson.model.Cause;
 import hudson.model.CauseAction;
 import hudson.model.Executor;
@@ -355,7 +354,7 @@ public class StashBuildTrigger extends Trigger<Job<?, ?>> {
 
     @Override
     public boolean isApplicable(Item item) {
-      return item instanceof AbstractProject;
+      return item instanceof Job && item instanceof ParameterizedJob;
     }
 
     @Override
