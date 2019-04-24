@@ -12,8 +12,10 @@ import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import hudson.Extension;
 import hudson.model.AbstractProject;
 import hudson.model.Cause;
+import hudson.model.CauseAction;
 import hudson.model.Executor;
 import hudson.model.Item;
+import hudson.model.Job;
 import hudson.model.ParameterDefinition;
 import hudson.model.ParameterValue;
 import hudson.model.ParametersAction;
@@ -38,6 +40,8 @@ import java.util.logging.Logger;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import jenkins.model.Jenkins;
+import jenkins.model.ParameterizedJobMixIn;
+import jenkins.model.ParameterizedJobMixIn.ParameterizedJob;
 import net.sf.json.JSONObject;
 import org.apache.commons.lang.StringUtils;
 import org.kohsuke.stapler.AncestorInPath;
@@ -48,7 +52,7 @@ import org.kohsuke.stapler.StaplerRequest;
 
 /** Created by Nathan McCarthy */
 @SuppressFBWarnings("NP_NULL_ON_SOME_PATH_FROM_RETURN_VALUE")
-public class StashBuildTrigger extends Trigger<AbstractProject<?, ?>> {
+public class StashBuildTrigger extends Trigger<Job<?, ?>> {
   private static final Logger logger =
       Logger.getLogger(MethodHandles.lookup().lookupClass().getName());
   private final String projectPath;
@@ -139,11 +143,14 @@ public class StashBuildTrigger extends Trigger<AbstractProject<?, ?>> {
   }
 
   private StandardUsernamePasswordCredentials getCredentials() {
+    // Cast is safe due to isApplicable() check
+    ParameterizedJob parameterizedJob = (ParameterizedJob) job;
+
     return CredentialsMatchers.firstOrNull(
         CredentialsProvider.lookupCredentials(
             StandardUsernamePasswordCredentials.class,
-            this.job,
-            Tasks.getDefaultAuthenticationOf(this.job),
+            parameterizedJob,
+            Tasks.getDefaultAuthenticationOf(parameterizedJob),
             URIRequirementBuilder.fromUri(stashHost).build()),
         CredentialsMatchers.allOf(CredentialsMatchers.withId(credentialsId)));
   }
@@ -197,11 +204,11 @@ public class StashBuildTrigger extends Trigger<AbstractProject<?, ?>> {
   }
 
   @Override
-  public void start(AbstractProject<?, ?> project, boolean newInstance) {
-    super.start(project, newInstance);
+  public void start(Job<?, ?> job, boolean newInstance) {
+    super.start(job, newInstance);
     try {
-      Objects.requireNonNull(project, "project is null");
-      this.stashPullRequestsBuilder = new StashPullRequestsBuilder(project, this);
+      Objects.requireNonNull(job, "job is null");
+      this.stashPullRequestsBuilder = new StashPullRequestsBuilder(job, this);
     } catch (NullPointerException e) {
       logger.log(Level.SEVERE, "Can't start trigger", e);
       return;
@@ -227,7 +234,21 @@ public class StashBuildTrigger extends Trigger<AbstractProject<?, ?>> {
       abortRunningJobsThatMatch(cause);
     }
 
-    return job.scheduleBuild2(job.getQuietPeriod(), cause, new ParametersAction(values));
+    // TODO: Use ParameterizedJob#getParameterizedJobMixIn() in Jenkins 2.61+
+    @SuppressWarnings("rawtypes")
+    ParameterizedJobMixIn<?, ?> scheduledJob =
+        new ParameterizedJobMixIn() {
+          @Override
+          protected Job<?, ?> asJob() {
+            return StashBuildTrigger.this.job;
+          }
+        };
+
+    // Cast is safe due to isApplicable() check
+    ParameterizedJob parameterizedJob = (ParameterizedJob) job;
+
+    return scheduledJob.scheduleBuild2(
+        parameterizedJob.getQuietPeriod(), new CauseAction(cause), new ParametersAction(values));
   }
 
   private void cancelPreviousJobsInQueueThatMatch(@Nonnull StashCause stashCause) {

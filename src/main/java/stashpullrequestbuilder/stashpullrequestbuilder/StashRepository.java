@@ -2,7 +2,7 @@ package stashpullrequestbuilder.stashpullrequestbuilder;
 
 import static java.lang.String.format;
 
-import hudson.model.AbstractProject;
+import hudson.model.Job;
 import hudson.model.Result;
 import java.lang.invoke.MethodHandles;
 import java.util.AbstractMap;
@@ -50,11 +50,11 @@ public class StashRepository {
   public static final Pattern ADDITIONAL_PARAMETER_REGEX_PATTERN =
       Pattern.compile(ADDITIONAL_PARAMETER_REGEX);
 
-  private AbstractProject<?, ?> job;
+  private Job<?, ?> job;
   private StashBuildTrigger trigger;
   private StashApiClient client;
 
-  public StashRepository(@Nonnull AbstractProject<?, ?> job, @Nonnull StashBuildTrigger trigger) {
+  public StashRepository(@Nonnull Job<?, ?> job, @Nonnull StashBuildTrigger trigger) {
     this.job = job;
     this.trigger = trigger;
     client =
