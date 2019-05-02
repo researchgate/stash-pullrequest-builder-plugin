@@ -295,53 +295,56 @@ public class StashRepository {
 
   private boolean isBuildTarget(StashPullRequestResponseValue pullRequest) {
 
+    if (!"OPEN".equals(pullRequest.getState())) {
+      return false;
+    }
+
     boolean shouldBuild = true;
 
-    if (pullRequest.getState() != null && pullRequest.getState().equals("OPEN")) {
-      if (isSkipBuild(pullRequest.getTitle())) {
-        logger.info("Skipping PR: " + pullRequest.getId() + " as title contained skip phrase");
-        return false;
-      }
+    if (isSkipBuild(pullRequest.getTitle())) {
+      logger.info("Skipping PR: " + pullRequest.getId() + " as title contained skip phrase");
+      return false;
+    }
 
-      if (!isForTargetBranch(pullRequest)) {
-        logger.info(
-            "Skipping PR: "
-                + pullRequest.getId()
-                + " as targeting branch: "
-                + pullRequest.getToRef().getBranch().getName());
-        return false;
-      }
+    if (!isForTargetBranch(pullRequest)) {
+      logger.info(
+          "Skipping PR: "
+              + pullRequest.getId()
+              + " as targeting branch: "
+              + pullRequest.getToRef().getBranch().getName());
+      return false;
+    }
 
-      if (!isPullRequestMergeable(pullRequest)) {
-        logger.info("Skipping PR: " + pullRequest.getId() + " as cannot be merged");
-        return false;
-      }
+    if (!isPullRequestMergeable(pullRequest)) {
+      logger.info("Skipping PR: " + pullRequest.getId() + " as cannot be merged");
+      return false;
+    }
 
-      boolean isOnlyBuildOnComment = trigger.isOnlyBuildOnComment();
+    boolean isOnlyBuildOnComment = trigger.isOnlyBuildOnComment();
 
-      if (isOnlyBuildOnComment) {
-        shouldBuild = false;
-      }
+    if (isOnlyBuildOnComment) {
+      shouldBuild = false;
+    }
 
-      String sourceCommit = pullRequest.getFromRef().getLatestCommit();
+    String sourceCommit = pullRequest.getFromRef().getLatestCommit();
 
-      StashPullRequestResponseValueRepository destination = pullRequest.getToRef();
-      String owner = destination.getRepository().getProjectName();
-      String repositoryName = destination.getRepository().getRepositoryName();
-      String destinationCommit = destination.getLatestCommit();
+    StashPullRequestResponseValueRepository destination = pullRequest.getToRef();
+    String owner = destination.getRepository().getProjectName();
+    String repositoryName = destination.getRepository().getRepositoryName();
+    String destinationCommit = destination.getLatestCommit();
 
-      String id = pullRequest.getId();
-      List<StashPullRequestComment> comments =
-          client.getPullRequestComments(owner, repositoryName, id);
+    String id = pullRequest.getId();
+    List<StashPullRequestComment> comments =
+        client.getPullRequestComments(owner, repositoryName, id);
 
-      if (comments != null) {
-        Collections.sort(comments);
-        Collections.reverse(comments);
-        for (StashPullRequestComment comment : comments) {
-          String content = comment.getText();
-          if (content == null || content.isEmpty()) {
-            continue;
-          }
+    if (comments != null) {
+      Collections.sort(comments);
+      Collections.reverse(comments);
+      for (StashPullRequestComment comment : comments) {
+        String content = comment.getText();
+        if (content == null || content.isEmpty()) {
+          continue;
+        }
 
           // These will match any start or finish message -- need to check commits
           String escapedBuildName = Pattern.quote(job.getDisplayName());
@@ -351,6 +354,14 @@ public class StashRepository {
               Pattern.compile(project_build_start, Pattern.CASE_INSENSITIVE).matcher(content);
           Matcher finishMatcher =
               Pattern.compile(project_build_finished, Pattern.CASE_INSENSITIVE).matcher(content);
+
+          if (startMatcher.find() || finishMatcher.find()) {
+            // in build only on comment, we should stop parsing comments as soon as a PR builder
+            // comment is found.
+            if (isOnlyBuildOnComment) {
+              assert !shouldBuild;
+              break;
+            }
 
           if (startMatcher.find() || finishMatcher.find()) {
             // in build only on comment, we should stop parsing comments as soon as a PR builder
